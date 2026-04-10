@@ -23,6 +23,7 @@ SUPPORTED_EXTENSIONS = {
     ".json",
     ".jsx",
     ".md",
+    ".pdf",
     ".py",
     ".rb",
     ".rs",
@@ -84,7 +85,7 @@ class HermenProject:
         indexed_chunks = 0
 
         for path in files:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = extract_text_from_file(path)
             chunks = chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
             if not chunks:
                 continue
@@ -159,6 +160,29 @@ def _iter_files(paths: list[Path]) -> list[Path]:
                     discovered.append(candidate)
 
     return discovered
+
+
+def extract_text_from_file(path: Path) -> str:
+    if path.suffix.lower() == ".pdf":
+        return _extract_text_from_pdf(path)
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _extract_text_from_pdf(path: Path) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise RuntimeError(
+            "PDF ingestion requires pypdf. Install with: uv pip install -e '.[local]'"
+        ) from exc
+
+    reader = PdfReader(str(path))
+    pages: list[str] = []
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        if text.strip():
+            pages.append(text)
+    return "\n\n".join(pages)
 
 
 def _display_path(path: Path, root: Path) -> str:

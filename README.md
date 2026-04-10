@@ -10,6 +10,7 @@ the intended base model is Gemma 4 E2B.
 ## What it does
 
 - Index plain-text company knowledge into a self-contained database
+- Index PDFs alongside text and code files
 - Run semantic retrieval over stored chunks
 - Answer questions with retrieved context through a local or remote model
 - Keep model selection configurable per project instead of hard-coding one model
@@ -48,6 +49,12 @@ Index a directory:
 
 ```bash
 hermen ingest ./docs ./handbook.md
+```
+
+Index a PDF directly:
+
+```bash
+hermen ingest "/Users/nas/Downloads/657045057_4517522795185706_3804826277082824742_n.pdf"
 ```
 
 Run retrieval only:

@@ -1,7 +1,9 @@
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
 from hermen.config import ProjectConfig
-from hermen.project import HermenProject
+from hermen.project import HermenProject, extract_text_from_file
 
 
 def test_ingest_search_and_ask_with_hash_and_echo(tmp_path: Path) -> None:
@@ -34,3 +36,26 @@ def test_ingest_search_and_ask_with_hash_and_echo(tmp_path: Path) -> None:
         assert "handbook.md" in answer.answer
     finally:
         project.close()
+
+
+def test_extract_text_from_pdf_uses_pypdf(tmp_path: Path, monkeypatch) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-pretend")
+
+    class FakePage:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def extract_text(self) -> str:
+            return self._text
+
+    class FakePdfReader:
+        def __init__(self, path: str) -> None:
+            assert path.endswith("sample.pdf")
+            self.pages = [FakePage("First page"), FakePage("Second page")]
+
+    monkeypatch.setitem(sys.modules, "pypdf", SimpleNamespace(PdfReader=FakePdfReader))
+
+    text = extract_text_from_file(pdf_path)
+
+    assert text == "First page\n\nSecond page"
