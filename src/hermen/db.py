@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import re
 import sqlite3
 from typing import Iterable
 from uuid import uuid4
@@ -161,6 +162,49 @@ class HermenDB:
                     text=str(row["text"]),
                     metadata=json.loads(str(row["metadata_json"])),
                     score=score,
+                )
+            )
+
+        results.sort(key=lambda item: item.score, reverse=True)
+        return results[:top_k]
+
+    def keyword_search(self, keywords: list[str], top_k: int = 6) -> list[SearchResult]:
+        rows = self.connection.execute(
+            """
+            SELECT
+                chunks.id AS chunk_id,
+                chunks.document_id AS document_id,
+                documents.source_path AS source_path,
+                chunks.chunk_index AS chunk_index,
+                chunks.text AS text,
+                chunks.metadata_json AS metadata_json
+            FROM chunks
+            JOIN documents ON documents.id = chunks.document_id
+            """
+        ).fetchall()
+
+        if not rows or not keywords:
+            return []
+
+        normalized_keywords = [keyword.lower() for keyword in keywords if keyword.strip()]
+        results: list[SearchResult] = []
+
+        for row in rows:
+            text = str(row["text"])
+            tokens = set(re.findall(r"[a-zA-Z0-9_]+", text.lower()))
+            overlap = sum(1 for keyword in normalized_keywords if keyword in tokens)
+            if overlap == 0:
+                continue
+            score = overlap / max(len(normalized_keywords), 1)
+            results.append(
+                SearchResult(
+                    chunk_id=str(row["chunk_id"]),
+                    document_id=str(row["document_id"]),
+                    source_path=str(row["source_path"]),
+                    chunk_index=int(row["chunk_index"]),
+                    text=text,
+                    metadata=json.loads(str(row["metadata_json"])),
+                    score=float(score),
                 )
             )
 
