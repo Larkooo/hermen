@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 from typing import Protocol
 
@@ -36,23 +37,25 @@ class LlamaCppQueryModel:
         if not config.model_path:
             raise ValueError("query_model.model_path must be set for llama_cpp provider")
 
-        self._llama = Llama(
-            model_path=config.model_path,
-            n_ctx=config.n_ctx,
-            n_gpu_layers=config.n_gpu_layers,
-            verbose=False,
-        )
+        with _silence_native_stderr():
+            self._llama = Llama(
+                model_path=config.model_path,
+                n_ctx=config.n_ctx,
+                n_gpu_layers=config.n_gpu_layers,
+                verbose=False,
+            )
         self._temperature = config.temperature
         self._max_tokens = config.max_tokens
 
     def answer(self, question: str, context: list[SearchResult]) -> str:
         prompt = _render_completion_prompt(question, context)
-        response = self._llama(
-            prompt,
-            temperature=self._temperature,
-            max_tokens=self._max_tokens,
-            stop=["\nQuestion:", "\nContext:", "\nSource:", "<end_of_turn>", "</s>"],
-        )
+        with _silence_native_stderr():
+            response = self._llama(
+                prompt,
+                temperature=self._temperature,
+                max_tokens=self._max_tokens,
+                stop=["\nQuestion:", "\nContext:", "\nSource:", "<end_of_turn>", "</s>"],
+            )
         choice = response["choices"][0]
         return _clean_answer(str(choice["text"]).strip())
 
@@ -141,3 +144,20 @@ def _render_completion_prompt(question: str, context: list[SearchResult]) -> str
 def _clean_answer(text: str) -> str:
     cleaned = text.replace("<end_of_turn>", "").replace("</s>", "").strip()
     return cleaned
+
+
+@contextmanager
+def _silence_native_stderr():
+    stderr_fd = None
+    devnull_fd = None
+    try:
+        stderr_fd = os.dup(2)
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull_fd, 2)
+        yield
+    finally:
+        if stderr_fd is not None:
+            os.dup2(stderr_fd, 2)
+            os.close(stderr_fd)
+        if devnull_fd is not None:
+            os.close(devnull_fd)
