@@ -9,6 +9,7 @@ from rich.table import Table
 from rich.text import Text
 
 from hermen.config import DEFAULT_EMBEDDING_MODEL, default_config
+from hermen.models import infer_query_model_capabilities
 from hermen.project import HermenProject, serialize_search_results
 
 
@@ -20,6 +21,12 @@ console = Console()
 def init(
     root: Path = typer.Option(Path("."), help="Project directory."),
     model_path: Path = typer.Option(..., exists=True, dir_okay=False, help="Path to a GGUF model."),
+    clip_model_path: Path | None = typer.Option(
+        None,
+        exists=True,
+        dir_okay=False,
+        help="Optional multimodal projector path for local vision support.",
+    ),
     embedding_provider: str = typer.Option("sentence_transformers", help="Embedding provider."),
     embedding_model: str = typer.Option(DEFAULT_EMBEDDING_MODEL, help="Embedding model name."),
     query_provider: str = typer.Option("llama_cpp", help="Query model provider."),
@@ -32,15 +39,18 @@ def init(
     config.embedding.model = embedding_model
     config.query_model.provider = query_provider
     config.query_model.model_path = str(model_path)
+    config.query_model.clip_model_path = str(clip_model_path) if clip_model_path else ""
     config.default_top_k = default_top_k
     config.query_model.n_ctx = n_ctx
     config.query_model.temperature = temperature
+    config.query_model_capabilities = infer_query_model_capabilities(config.query_model)
 
     project = HermenProject.init(root, config)
     project.close()
     console.print(f"Initialized hermen project at [bold]{root.resolve()}[/bold]")
     console.print(f"Database: {config.database_path}")
     console.print(f"Query model: {config.query_model.model_path}")
+    console.print(f"Vision enabled: {config.query_model_capabilities.vision}")
 
 
 @app.command()
@@ -119,13 +129,16 @@ def chat(
 ) -> None:
     project = HermenProject.open(root)
     console.print("Type a question. Type 'exit' or 'quit' to stop.")
+    history: list[dict[str, str]] = []
     try:
         while True:
             question = typer.prompt("hermen")
             if question.strip().lower() in {"exit", "quit"}:
                 break
-            response = project.ask(question, top_k=top_k)
+            response = project.ask(question, top_k=top_k, history=history)
             console.print(Panel(Text(response.answer), title="Answer"))
+            history.append({"role": "user", "content": question})
+            history.append({"role": "assistant", "content": response.answer})
     finally:
         project.close()
 

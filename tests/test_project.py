@@ -34,6 +34,37 @@ def test_ingest_search_and_ask_with_hash_and_echo(tmp_path: Path) -> None:
 
         answer = project.ask("What does onboarding require?", top_k=2)
         assert "handbook.md" in answer.answer
+        assert answer.plan.search_queries
+
+        follow_up = project.ask("What about benefits?", top_k=2, history=[
+            {"role": "user", "content": "What does onboarding require?"},
+            {"role": "assistant", "content": answer.answer},
+        ])
+        assert follow_up.plan.search_queries
+    finally:
+        project.close()
+
+
+def test_ingest_image_with_vision_enabled(tmp_path: Path) -> None:
+    from PIL import Image
+
+    image_path = tmp_path / "safety-training.png"
+    Image.new("RGB", (32, 24), color="white").save(image_path)
+
+    config = ProjectConfig()
+    config.embedding.provider = "hash"
+    config.query_model.provider = "echo"
+    config.query_model_capabilities.vision = True
+
+    project = HermenProject.init(tmp_path, config)
+    try:
+        ingest_stats = project.ingest_paths([image_path])
+        assert ingest_stats["documents"] == 1
+        assert ingest_stats["chunks"] == 1
+
+        results = project.search("safety training image", top_k=1)
+        assert results
+        assert results[0].metadata["record_type"] == "image_semantic"
     finally:
         project.close()
 
