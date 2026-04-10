@@ -110,15 +110,27 @@ def ask(
     question: str = typer.Argument(..., help="Question to answer."),
     root: Path = typer.Option(Path("."), help="Project directory."),
     top_k: int = typer.Option(6, min=1, help="Number of chunks to retrieve."),
+    stream: bool = typer.Option(False, "--stream", help="Stream the answer text as it is generated."),
 ) -> None:
     project = HermenProject.open(root)
     try:
-        response = project.ask(question, top_k=top_k)
+        if stream:
+            _plan, results, answer_stream = project.stream_ask(question, top_k=top_k)
+            console.print("[bold]Answer[/bold]")
+            collected: list[str] = []
+            for chunk in answer_stream:
+                collected.append(chunk)
+                console.out(chunk, end="")
+            console.out("\n")
+            response = type("StreamResponse", (), {"answer": "".join(collected), "context": results})()
+        else:
+            response = project.ask(question, top_k=top_k)
     finally:
         project.close()
 
     sources = "\n".join(f"- {item.source_path}#{item.chunk_index}" for item in response.context)
-    console.print(Panel(Text(response.answer), title="Answer"))
+    if not stream:
+        console.print(Panel(Text(response.answer), title="Answer"))
     console.print(Panel(Text(sources or "No sources retrieved."), title="Sources"))
 
 
@@ -126,6 +138,7 @@ def ask(
 def chat(
     root: Path = typer.Option(Path("."), help="Project directory."),
     top_k: int = typer.Option(6, min=1, help="Number of chunks to retrieve per turn."),
+    stream: bool = typer.Option(True, "--stream/--no-stream", help="Stream answers during chat."),
 ) -> None:
     project = HermenProject.open(root)
     console.print("Type a question. Type 'exit' or 'quit' to stop.")
@@ -135,10 +148,23 @@ def chat(
             question = typer.prompt("hermen")
             if question.strip().lower() in {"exit", "quit"}:
                 break
-            response = project.ask(question, top_k=top_k, history=history)
-            console.print(Panel(Text(response.answer), title="Answer"))
+            if stream:
+                _plan, results, answer_stream = project.stream_ask(question, top_k=top_k, history=history)
+                console.print("[bold]Answer[/bold]")
+                collected: list[str] = []
+                for chunk in answer_stream:
+                    collected.append(chunk)
+                    console.out(chunk, end="")
+                console.out("\n")
+                answer_text = "".join(collected)
+                sources = "\n".join(f"- {item.source_path}#{item.chunk_index}" for item in results)
+                console.print(Panel(Text(sources or "No sources retrieved."), title="Sources"))
+            else:
+                response = project.ask(question, top_k=top_k, history=history)
+                console.print(Panel(Text(response.answer), title="Answer"))
+                answer_text = response.answer
             history.append({"role": "user", "content": question})
-            history.append({"role": "assistant", "content": response.answer})
+            history.append({"role": "assistant", "content": answer_text})
     finally:
         project.close()
 

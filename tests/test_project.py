@@ -36,6 +36,10 @@ def test_ingest_search_and_ask_with_hash_and_echo(tmp_path: Path) -> None:
         assert "handbook.md" in answer.answer
         assert answer.plan.search_queries
 
+        _plan, _results, stream = project.stream_ask("What does onboarding require?", top_k=2)
+        streamed_text = "".join(stream)
+        assert "handbook.md" in streamed_text
+
         follow_up = project.ask("What about benefits?", top_k=2, history=[
             {"role": "user", "content": "What does onboarding require?"},
             {"role": "assistant", "content": answer.answer},

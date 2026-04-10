@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from hermen.config import QueryModelCapabilities, QueryModelConfig
 from hermen.db import SearchResult
@@ -42,6 +42,14 @@ class QueryModel(Protocol):
         context: list[SearchResult],
         history: list[dict[str, str]] | None = None,
     ) -> str:
+        ...
+
+    def stream_answer(
+        self,
+        question: str,
+        context: list[SearchResult],
+        history: list[dict[str, str]] | None = None,
+    ) -> Iterator[str]:
         ...
 
     def describe_image(self, image_path: str, prompt: str | None = None) -> str:
@@ -86,6 +94,14 @@ class EchoQueryModel:
         sources = ", ".join(sorted({item.source_path for item in context})) or "none"
         preview = "\n\n".join(item.text[:300] for item in context[:3]) or "No context found."
         return f"Question: {question}\n\nContext preview:\n{preview}\n\nSources: {sources}"
+
+    def stream_answer(
+        self,
+        question: str,
+        context: list[SearchResult],
+        history: list[dict[str, str]] | None = None,
+    ) -> Iterator[str]:
+        yield self.answer(question, context, history=history)
 
     def describe_image(self, image_path: str, prompt: str | None = None) -> str:
         if not self._capabilities.vision:
@@ -191,6 +207,30 @@ class LlamaCppQueryModel:
             )
         choice = response["choices"][0]
         return _clean_answer(str(choice["text"]).strip())
+
+    def stream_answer(
+        self,
+        question: str,
+        context: list[SearchResult],
+        history: list[dict[str, str]] | None = None,
+    ) -> Iterator[str]:
+        prompt = _render_completion_prompt(question, context)
+
+        def iterator() -> Iterator[str]:
+            with _silence_native_stderr():
+                stream = self._llama(
+                    prompt,
+                    temperature=self._temperature,
+                    max_tokens=self._max_tokens,
+                    stop=["\nQuestion:", "\nContext:", "\nSource:", "<end_of_turn>", "</s>"],
+                    stream=True,
+                )
+                for chunk in stream:
+                    text = _clean_stream_chunk(str(chunk["choices"][0]["text"]))
+                    if text:
+                        yield text
+
+        return iterator()
 
     def describe_image(self, image_path: str, prompt: str | None = None) -> str:
         if not self._capabilities.vision:
@@ -299,6 +339,14 @@ class OpenAICompatibleQueryModel:
         response.raise_for_status()
         data = response.json()
         return str(data["choices"][0]["message"]["content"]).strip()
+
+    def stream_answer(
+        self,
+        question: str,
+        context: list[SearchResult],
+        history: list[dict[str, str]] | None = None,
+    ) -> Iterator[str]:
+        yield self.answer(question, context, history=history)
 
     def describe_image(self, image_path: str, prompt: str | None = None) -> str:
         if not self._capabilities.vision:
@@ -432,6 +480,10 @@ def _clean_search_query(text: str) -> str:
             cleaned = cleaned[len(prefix) :].strip()
             lowered = cleaned.lower()
     return cleaned.strip(" \"'")
+
+
+def _clean_stream_chunk(text: str) -> str:
+    return text.replace("<end_of_turn>", "").replace("</s>", "")
 
 
 def _render_history(history: list[dict[str, str]] | None) -> str:

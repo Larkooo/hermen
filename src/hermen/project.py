@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+from typing import Iterator
 
 from hermen.chunking import chunk_text
 from hermen.config import ProjectConfig, default_config
@@ -171,6 +172,16 @@ class HermenProject:
         model = self._get_query_model()
         answer = model.answer(question, results, history=history)
         return AskResponse(answer=answer, context=results, plan=plan)
+
+    def stream_ask(
+        self,
+        question: str,
+        top_k: int | None = None,
+        history: list[dict[str, str]] | None = None,
+    ) -> tuple[RetrievalPlan, list[SearchResult], Iterator[str]]:
+        plan, results = self.retrieve(question, top_k=top_k, history=history)
+        model = self._get_query_model()
+        return plan, results, model.stream_answer(question, results, history=history)
 
     def stats(self) -> dict[str, int]:
         return self.db.stats()
