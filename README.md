@@ -15,6 +15,25 @@ the intended base model is Gemma 4 E2B.
 - Answer questions with retrieved context through a local or remote model
 - Keep model selection configurable per project instead of hard-coding one model
 
+## Try it without model downloads
+
+Install into a virtual environment, then try the synthetic example:
+
+```sh
+git clone https://github.com/Larkooo/hermen.git
+cd hermen
+uv venv --python 3.12
+uv pip install -e ".[dev]"
+uv run hermen init --root ./demo-db --query-provider echo --embedding-provider hash
+uv run hermen ingest ./examples/documents --root ./demo-db
+uv run hermen search "backups retention" --root ./demo-db --json
+uv run hermen ask "How long are backups retained?" --root ./demo-db
+```
+
+This verifies storage, retrieval, and source reporting with deterministic debug
+providers; it does not run a language model or evaluate semantic search quality.
+For actual document question answering, use the local model setup below.
+
 ## Architecture
 
 - Storage: SQLite for documents, chunks, metadata, and embeddings
@@ -42,7 +61,7 @@ Initialize a database with your local Gemma GGUF model:
 
 ```bash
 hermen init \
-  --model-path "/Users/nas/Library/Application Support/app.cotypist.Cotypist/Models/gemma-4-E2B-i1-Q4_K_M.gguf"
+  --model-path "/path/to/your/model.gguf"
 ```
 
 Index a directory:
@@ -54,7 +73,7 @@ hermen ingest ./docs ./handbook.md
 Index a PDF directly:
 
 ```bash
-hermen ingest "/Users/nas/Downloads/657045057_4517522795185706_3804826277082824742_n.pdf"
+hermen ingest "./documents/handbook.pdf"
 ```
 
 Run retrieval only:
@@ -136,3 +155,17 @@ Run lint:
 ```bash
 ruff check .
 ```
+
+## Limits and data handling
+
+Use this for small document collections, code notes, and local knowledge bases.
+Retrieval scans the stored vectors; this is not an approximate-nearest-neighbor
+index. Keep one embedding model per database, and create a new database when
+changing models or chunking settings. Answers can be wrong; inspect the cited
+source chunks. PDF extraction quality depends on the document.
+
+The local provider keeps inference on your machine after model downloads. The
+OpenAI-compatible provider sends questions, retrieved text, and any requested
+images to the configured server. Databases and local configuration are ignored
+by Git; the example documents contain only synthetic data. Model weights retain
+their own licenses and are not included in this repository.

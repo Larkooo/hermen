@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import base64
 import json
+import mimetypes
 import os
 from pathlib import Path
 from typing import Protocol
@@ -321,7 +323,9 @@ class OpenAICompatibleQueryModel:
                             {"type": "text", "text": prompt or DEFAULT_IMAGE_PROMPT},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": Path(image_path).resolve().as_uri()},
+                                "image_url": {
+                                    "url": _image_data_url(Path(image_path)),
+                                },
                             },
                         ],
                     }
@@ -332,6 +336,14 @@ class OpenAICompatibleQueryModel:
         response.raise_for_status()
         data = response.json()
         return str(data["choices"][0]["message"]["content"]).strip()
+
+
+def _image_data_url(path: Path) -> str:
+    mime_type = mimetypes.guess_type(path.name)[0]
+    if mime_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise ValueError("Images must be JPEG, PNG, or WebP")
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def build_query_model(

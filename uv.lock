@@ -169,6 +169,9 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "httpx" },
+    { name = "pillow" },
+    { name = "pypdf" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -184,10 +187,13 @@ remote = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'remote'", specifier = ">=0.27" },
     { name = "llama-cpp-python", marker = "extra == 'local'", specifier = ">=0.3.7" },
     { name = "numpy", specifier = ">=1.26" },
+    { name = "pillow", marker = "extra == 'dev'", specifier = ">=10.4" },
     { name = "pillow", marker = "extra == 'local'", specifier = ">=10.4" },
+    { name = "pypdf", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pypdf", marker = "extra == 'local'", specifier = ">=5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "rich", specifier = ">=13.7" },
