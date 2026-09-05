@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from rich.text import Text
 from typer.testing import CliRunner
 
 from hermen.cli import app
@@ -28,8 +29,9 @@ def test_offline_cli_workflow_and_json(tmp_path: Path) -> None:
 
 def test_init_requires_model_only_for_local_inference(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["init", "--root", str(tmp_path)])
-    assert result.exit_code != 0
-    assert "--model-path is required" in result.output
+    assert result.exit_code == 2
+    assert "--model-path is required" in Text.from_ansi(result.output).plain
+    assert not (tmp_path / "hermen.toml").exists()
 
 
 def test_init_preserves_existing_config(tmp_path: Path) -> None:
