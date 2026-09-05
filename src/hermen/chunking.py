@@ -40,6 +40,7 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> l
         if end >= len(normalized):
             break
 
-        start = max(0, end - chunk_overlap)
+        # A nearby word boundary can be shorter than the requested overlap.
+        start = max(start + 1, end - chunk_overlap)
 
     return chunks

@@ -20,7 +20,7 @@ console = Console()
 @app.command()
 def init(
     root: Path = typer.Option(Path("."), help="Project directory."),
-    model_path: Path = typer.Option(..., exists=True, dir_okay=False, help="Path to a GGUF model."),
+    model_path: Path | None = typer.Option(None, exists=True, dir_okay=False, help="Path to a GGUF model."),
     clip_model_path: Path | None = typer.Option(
         None,
         exists=True,
@@ -34,12 +34,21 @@ def init(
     n_ctx: int = typer.Option(8192, min=512, help="Model context window."),
     temperature: float = typer.Option(0.1, min=0.0, max=2.0, help="Sampling temperature."),
 ) -> None:
-    config = default_config(str(model_path))
+    if query_provider == "llama_cpp" and model_path is None:
+        raise typer.BadParameter("--model-path is required for the llama_cpp provider")
+    if query_provider not in {"llama_cpp", "echo", "openai_compatible"}:
+        raise typer.BadParameter("Unknown query provider")
+    if embedding_provider not in {"sentence_transformers", "hash"}:
+        raise typer.BadParameter("Unknown embedding provider")
+    if (root / "hermen.toml").exists():
+        raise typer.BadParameter(f"A hermen project already exists at {root}")
+    resolved_model = str(model_path.resolve()) if model_path else ""
+    config = default_config(resolved_model)
     config.embedding.provider = embedding_provider
     config.embedding.model = embedding_model
     config.query_model.provider = query_provider
-    config.query_model.model_path = str(model_path)
-    config.query_model.clip_model_path = str(clip_model_path) if clip_model_path else ""
+    config.query_model.model_path = resolved_model
+    config.query_model.clip_model_path = str(clip_model_path.resolve()) if clip_model_path else ""
     config.default_top_k = default_top_k
     config.query_model.n_ctx = n_ctx
     config.query_model.temperature = temperature
@@ -85,7 +94,7 @@ def search(
         project.close()
 
     if json_output:
-        console.print(serialize_search_results(results))
+        typer.echo(serialize_search_results(results))
         return
 
     table = Table(title="Search Results")

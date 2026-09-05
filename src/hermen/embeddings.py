@@ -18,6 +18,8 @@ class Embedder(Protocol):
 
 class HashEmbedder:
     def __init__(self, dimensions: int = 384) -> None:
+        if dimensions < 1:
+            raise ValueError("Embedding dimensions must be positive")
         self.dimensions = dimensions
 
     def embed_texts(self, texts: list[str]) -> list[np.ndarray]:

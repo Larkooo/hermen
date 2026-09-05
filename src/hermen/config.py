@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import json
 import tomllib
 
 
@@ -86,31 +87,26 @@ class ProjectConfig:
         return root / self.database_path
 
     def to_toml(self) -> str:
-        query_base = self.query_model.base_url.replace("\\", "\\\\").replace('"', '\\"')
-        query_model_path = self.query_model.model_path.replace("\\", "\\\\").replace('"', '\\"')
-        clip_model_path = self.query_model.clip_model_path.replace("\\", "\\\\").replace('"', '\\"')
-        query_model_name = self.query_model.model.replace("\\", "\\\\").replace('"', '\\"')
-        embedding_model = self.embedding.model.replace("\\", "\\\\").replace('"', '\\"')
         return (
             f"schema_version = {self.schema_version}\n"
-            f'database_path = "{self.database_path}"\n'
-            f"default_top_k = {self.default_top_k}\n\n"
-            "[embedding]\n"
-            f'provider = "{self.embedding.provider}"\n'
-            f'model = "{embedding_model}"\n'
-            f"dimensions = {self.embedding.dimensions}\n\n"
-            "[query_model]\n"
-            f'provider = "{self.query_model.provider}"\n'
-            f'model = "{query_model_name}"\n'
-            f'model_path = "{query_model_path}"\n'
-            f'clip_model_path = "{clip_model_path}"\n'
-            f'base_url = "{query_base}"\n'
-            f'api_key_env = "{self.query_model.api_key_env}"\n'
+            f"database_path = {json.dumps(self.database_path, ensure_ascii=False)}\n"
+            f"default_top_k = {self.default_top_k}\n"
+            "\n[embedding]\n"
+            f"provider = {json.dumps(self.embedding.provider, ensure_ascii=False)}\n"
+            f"model = {json.dumps(self.embedding.model, ensure_ascii=False)}\n"
+            f"dimensions = {self.embedding.dimensions}\n"
+            "\n[query_model]\n"
+            f"provider = {json.dumps(self.query_model.provider, ensure_ascii=False)}\n"
+            f"model = {json.dumps(self.query_model.model, ensure_ascii=False)}\n"
+            f"model_path = {json.dumps(self.query_model.model_path, ensure_ascii=False)}\n"
+            f"clip_model_path = {json.dumps(self.query_model.clip_model_path, ensure_ascii=False)}\n"
+            f"base_url = {json.dumps(self.query_model.base_url, ensure_ascii=False)}\n"
+            f"api_key_env = {json.dumps(self.query_model.api_key_env, ensure_ascii=False)}\n"
             f"n_ctx = {self.query_model.n_ctx}\n"
             f"n_gpu_layers = {self.query_model.n_gpu_layers}\n"
             f"temperature = {self.query_model.temperature}\n"
-            f"max_tokens = {self.query_model.max_tokens}\n\n"
-            "[query_model.capabilities]\n"
+            f"max_tokens = {self.query_model.max_tokens}\n"
+            "\n[query_model.capabilities]\n"
             f"text = {str(self.query_model_capabilities.text).lower()}\n"
             f"vision = {str(self.query_model_capabilities.vision).lower()}\n"
             f"audio = {str(self.query_model_capabilities.audio).lower()}\n"

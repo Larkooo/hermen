@@ -70,6 +70,8 @@ class HermenProject:
     @classmethod
     def init(cls, root: Path, config: ProjectConfig | None = None) -> "HermenProject":
         root.mkdir(parents=True, exist_ok=True)
+        if (root / "hermen.toml").exists():
+            raise FileExistsError(f"A hermen project already exists at {root}")
         project_config = config or default_config("")
         project = cls(root, project_config)
         project_config.save(project.config_path)
